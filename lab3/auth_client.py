@@ -19,6 +19,19 @@ def hash_password(pw):
     m.update(pw.encode("utf-8"))
     return m.hexdigest()
 
+def generate_otp(username):
+    client_info = json.load(open('users.json'))
+    totp = pyotp.TOTP(client_info[username]["otp_secret"])
+    print(totp.now())
+
+def generate_otp_client(username):
+    with open('users.json') as data:
+        client_info = json.load(data)
+    client_secret = pyotp.random_base32()
+    client_info[username]["otp_secret"] = client_secret
+    with open('users.json', "w") as data:
+        json.dump(client_info, data, indent=4)
+
 def auth_client():
     hostname = socket.gethostname() 
     port = 12345

@@ -2,15 +2,15 @@ import json
 import pyotp
 import socket
 
-# Global Constants
-_client_passwords = {'student': '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8'}
-_client_secrets = {'student':'GTKWFRVSKAUDK3ER7I7QUB3OCSEV2LSH'}
-
 def validate_password(username, hashed_pwd):
-    return _client_passwords[username] == hashed_pwd
+    with (open('users.json')) as data:
+        client_info = json.load(data)
+    return client_info[username]["password"] == hashed_pwd
 
 def validate_otp(username, otp_string):
-    totp = pyotp.TOTP(_client_secrets[username])
+    with (open('users.json')) as data:
+        client_info = json.load(data)
+    totp = pyotp.TOTP(client_info[username]["otp_secret"])
     return totp.verify(otp_string)
 
 def auth_server():
