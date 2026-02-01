@@ -20,11 +20,21 @@ def hash_password(pw):
     return m.hexdigest()
 
 def generate_otp(username):
+    """
+    Generate the one time password for the given username
+    
+    :param username: The username of the user that requires the OTP
+    """
     client_info = json.load(open('users.json'))
     totp = pyotp.TOTP(client_info[username]["otp_secret"])
     print(totp.now())
 
 def generate_otp_client(username):
+    """
+    Helper function to generate the OTP secret for the given user. Also writes the value into 'users.json'. 
+    
+    :param username: The username of the user that the secret should be generated for
+    """
     with open('users.json') as data:
         client_info = json.load(data)
     client_secret = pyotp.random_base32()
@@ -33,6 +43,9 @@ def generate_otp_client(username):
         json.dump(client_info, data, indent=4)
 
 def auth_client():
+    """
+    Main program for the authorization client
+    """
     hostname = socket.gethostname() 
     port = 12345
 
@@ -44,6 +57,7 @@ def auth_client():
     username = input("Provide a username: ")
     password = getpass.getpass()
     
+    # number of incorrect password tries before the program exits
     num_tries = 5
     valid_pwd = False
     data_map = {'username' : username, 'password' : hash_password(password)}
@@ -53,7 +67,6 @@ def auth_client():
         client_socket.send(data_string.encode())
 
         resp = client_socket.recv(1024).decode()
-        print(resp)
         if not resp:
             print("Server did not respond. Exiting program.")
             client_socket.close()
