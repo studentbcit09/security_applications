@@ -74,6 +74,10 @@ def auth_client():
         if 'SUCCESS' == resp:
             print ("Username and password validated")
             valid_pwd = True
+        elif 'INVALID_USER' == resp:
+            print("User does not exist. Please try again. Exiting program.")
+            client_socket.accept
+            exit()
         elif 'FAILED' == resp:
             if 1 == num_tries:
                 print("Incorrect password. Attempts to login have been exhausted. Exiting program.")

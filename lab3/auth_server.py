@@ -53,6 +53,11 @@ def auth_server():
                         if not validated_user:
                             user_info = json.loads(data)
                             username = user_info['username']
+                            if username not in user_info:
+                                print("User %s does not exist in system." % username)
+                                return_msg = "INVALID_USER"
+                                conn.send(return_msg.encode())
+                                break
                             if validate_password(username, user_info['password']):
                                 print("User %s authenticated using password. Waiting for OTP." % username)
                                 return_msg = "SUCCESS"
