@@ -7,27 +7,23 @@ ICMP_PROTO_VAL = 1
 
 def traffic_analysis():
     num_packets = 20
-
-    packets =  sniff(filter="ip or ip6", count = num_packets)
+    packets =  sniff(filter="ip", count = num_packets)
 
     protocol_counts = {}
 
     print(f"{'Source IP':<15} | {'Source Port':<12} | {'Destination IP':<17} | {'Destination Port':<16} | {'Protocol':<10}")
-    print("-" * 75)
+    print("-" * 80)
     for packet in packets:
         # the filter guarantees that the ip layer will exist
         ip_layer = packet.getlayer('IP')
-        # print(ip_layer)
+
         src = ip_layer.src
         dst = ip_layer.dst
         proto_val = ip_layer.proto 
 
-        if ICMP_PROTO_VAL == proto_val:
-            src_port = dst_port = "N/A"
-        else:
-            payload = ip_layer.payload
-            src_port = payload.sport
-            dst_port = payload.dport
+        payload = ip_layer.payload
+        src_port = getattr(payload, "sport", "N/A")
+        dst_port = getattr(payload, "dport", "N/A")            
 
         proto_str = IP_PROTOS[proto_val]
 
