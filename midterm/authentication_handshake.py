@@ -33,10 +33,12 @@ class AuthenticationServer:
         elif client_info[username]["password"] != hashed_pwd:
             if self.active_connections[username]["pwd_attempts"] > 1:
                 self.active_connections[username]["pwd_attempts"] -= 1
-                logger.debug(f"{self.active_connections[username]["pwd_attempts"]} password attempts left for {username}")
+                logger.debug(f"{self.active_connections[username]['pwd_attempts']} password attempts left for {username}")
                 return False
             else:
-                raise AuthenticationError(f"Incorrect password for user {username}")
+                # assume that the function calling the authserver module will check this and close necessary connections
+                self.active_connections[username]["session_state"] = "CLOSED"
+                raise AuthenticationError(f"Incorrect password for user {username}, no attempts left")
         
         else:
             logger.info(f"User {username} has successfully logged in")
@@ -51,19 +53,17 @@ class AuthenticationServer:
         totp = pyotp.TOTP(client_info[username]["otp_secret"])
         if totp.verify(otp_val):
             logger.info(f"OTP validated for user {username}, user sucessfully logged in")
-            # TODO: if extra lines, change to enum
-            self.active_connections[username]["session_state"] = "CONNECTED"
             self.active_connections[username]["nonce_secret"] = client_info[username]["otp_secret"]
             return True
 
         elif self.active_connections[username]["otp_attempts"] > 1:
             self.active_connections[username]["otp_attempts"] -= 1
-            logger.debug(f"{self.active_connections[username]["otp_attempts"]} OTP attempts left for {username}")
+            logger.debug(f"{self.active_connections[username]['otp_attempts']} OTP attempts left for {username}")
             return False
 
         else:
             # assume that the function calling the authserver module will check this and close necessary connections
-            self.active_connections[username]["session_state"]["state"] = "CLOSED"
+            self.active_connections[username]["session_state"] = "CLOSED"
             raise AuthenticationError(f"Exhausted number of OTP attempts for {username}")
 
 
@@ -71,45 +71,49 @@ class AuthenticationServer:
     # assumption, JSON validation already performed by detection module; detection module does input validation (length and checks for malicious/suspiciously formed inputs)
     # only minor checks performed here 
     def authentication_handshake(self, message):
-        return_msg = {}
         if "authentication" not in message:
             raise AuthenticationError("Malformed message: Missing authentication object")
         
         auth_obj = message['authentication']
         if "username" not in message:
             raise AuthenticationError("Malformed message: Missing username")
+        
+        return_msg = {}
         username = message["username"]
         return_msg["username"] = username
+        try:
+            if username not in self.active_connections:
+                self.active_connections[username] = {"pwd_auth": False, "pwd_attempts" : 5, "otp_attempts": 5, "session_state" : "AUTH"}
 
-        if username in self.active_connections:
-            if self.active_connections[username]["pwd_auth"]:
+            if not self.active_connections[username]["pwd_auth"]:
+                if "password" not in auth_obj:
+                    raise AuthenticationError("Malformed message: Missing password for initial authentication")
+                
+                if self.validate_password(username, auth_obj["password"]):
+                    self.active_connections[username]["pwd_auth"] = True
+                    return_msg["authentication"] = {"require_otp": True}
+            
+            else:
                 if "otp" not in auth_obj:
                     raise AuthenticationError("Malformed message: Missing OTP value")
-                
+
                 # will throw error if OTP exhausted
                 if self.validate_otp(username, auth_obj["otp"]):
+                    # TODO: if extra lines, change to enum
+                    self.active_connections[username]["session_state"] = "CONNECTED"
+
                     hotp = pyotp.HOTP(self.active_connections[username]["nonce_secret"])
                     return_msg["otp"] = hotp.at(0)
                     self.active_connections[username]["counter"] = 1
                 else:
                     return_msg["authentication"] = {"authentication": {"require_otp": True}}
-                    
-            elif "password" not in auth_obj:
-                raise AuthenticationError("Malformed message: Missing password for initial authentication")
-            else:
-                if self.validate_password(username, auth_obj["password"]):
-                    self.active_connections[username]["pwd_auth"] = True
-                    return_msg["authentication"] = {"authentication": {"require_otp": True}}
-        else:
-            self.active_connections[username] = {"pwd_auth": False, "pwd_attempts" : 5, "otp_attempts": 5, "session_state" : "AUTH"}
 
-
-
-
-
-            # if "password" not in auth_obj:
-            #     raise AuthenticationError("Malformed message: Missing password for initial authentication")
-            # self.validate_password(auth_obj['username'], auth_obj['password'])
+        except AuthenticationError:
+            logging.debug("Unable to authenticate")
+            raise
+        finally:
+            return_msg["session_state"] = {"state": self.active_connections[username]["session_state"]}
+            return return_msg
         
 
 
