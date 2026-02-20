@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import pyotp
@@ -86,7 +87,7 @@ class AuthenticationServer:
         Returns:
             bool: True if the password is correct, else False.
         """
-        client_info = self.get_client_info()\
+        client_info = self.get_client_info()
         # Handles incorrect username, malformed usernames.
         if username not in client_info:
             self.active_connections[username]["session_state"] = "CLOSED"
@@ -243,10 +244,72 @@ class AuthenticationServer:
 class AuthenticationClient:
     """
     Authentication Client logic. Only for demonstration purposes.
+    Contains partial code with helper functions of core security features.
     """
 
     def __init__(self):
-        pass
+        self.nonce_counter = 0
+
+    def verify_nonce_otp(self, otp_secret, nonce_otp_recv):
+        """
+        Verifies the nonce (counter based OTP) value included in the message 
+        from the server.
+
+        Including a nonce prevents against replay attacks.
+
+        Args:
+            otp_secret (string): The user client secret for generating the OTP. 
+            nonce_otp_recv (string): The nonce value in the message received.
+
+        Returns:
+            bool: True if the nonce is as expected, else False.
+        """
+        hotp = pyotp.HOTP(otp_secret)
+        return hotp.at(self.nonce_counter) == nonce_otp_recv
+
+    def calculate_nonce_otp(self, otp_secret):
+        """
+        Calculates the next nonce value to include in the outgoing message.
+        Including a nonce prevents against replay attacks.
+        Increases the nonce counter to the next expected value.
+
+        Args:
+            otp_secret (string): The user client secret for generating the OTP.
+
+        Returns:
+            string: The nonce value to include with the outgoing message. 
+        """
+        hotp = pyotp.HOTP(otp_secret)
+        nonce_otp_val = hotp.at(self.nonce_counter + 1)
+        # Increased the counter by one for the calculation, add another one 
+        # for the next expected value.
+        self.nonce_counter += 2
+        return nonce_otp_val
+    
+    def create_auth_request_object(self, username, password):
+        """
+        Creates the protocol message for initial authentication based on the
+        provided username and password.
+
+        Hashing the password allows for more secure communication of credentials
+        between the client and server, reducing sniffing attacks that result in 
+        leaked credentials.
+
+        Args:
+            username (string): username for the login user
+            password (string): plaintext password for the user
+
+        Returns:
+            dict: The protocol message containing the authentication object.
+        """
+        auth_msg = {"username": username}
+        m = hashlib.sha256()
+        m.update(password.encode("utf-8"))
+        hashed_pwd = m.hexdigest()
+
+        auth_msg['authentication'] = {"password": hashed_pwd}
+        return auth_msg
+
 
 class AuthenticationError(Exception):
     """
