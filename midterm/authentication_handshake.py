@@ -109,9 +109,7 @@ class AuthenticationServer:
         else:
             logger.info(f"User {username} has successfully logged in")
             return True
-    
-    # assumption: user already known to be in the database because they have authenticated with username/pw
-    # assumption: otp_secret is populated, there is a failure mechanism during config that will not allow this to be empty
+
     def validate_otp(self, username, otp_val):
         """
         Validate the provided OTP against the expected current OTP.
@@ -172,7 +170,10 @@ class AuthenticationServer:
             incorporate into the return message. 
             
             The caller should handle the session state by looking at the info in 
-            current_connections. This function only changes the value in current_connections.
+            active_connections. This function only changes the value in active_connections.
+            If the session state is CLOSED the caller is expected to remove the entry after
+            it closes the connection gracefully.
+            
 
         Args:
             message (dict): The protocol message received from the client.
