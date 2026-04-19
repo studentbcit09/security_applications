@@ -179,7 +179,7 @@ class AuthenticationServer:
         
         decoded_msg = Fernet(fernet_key).decrypt(encrypted_bytes).decode('utf-8')
 
-        with open("architect_manifesto.txt", "w") as file:
+        with open("recovered_architect_manifesto.txt", "w") as file:
             file.write(decoded_msg)
 
         return {"status": "File decrypted successfully"}
@@ -284,7 +284,7 @@ class AuthenticationServer:
         port = 1234
 
         server_socket = socket.socket()
-        server_socket.bind((hostname, port))
+        server_socket.bind(("127.0.0.1", port))
 
         while True:
             try:      
@@ -314,18 +314,22 @@ class AuthenticationServer:
                         self.disconnect_user(curr_username)
                         print("Authentication error")
                         conn.close()
+                        break
                     except ConnectionAbortedError:
                         self.disconnect_user(curr_username)
                         print("Client aborted connection")
                         conn.close()
+                        break
                     except Exception as e:
                         self.disconnect_user(curr_username)
                         print('Other error occurred: %s' % e)
                         conn.close()
+                        break
 
             except ConnectionAbortedError:
                 print("Client aborted connection")
                 conn.close()
+                break
 
 class AuthenticationError(Exception):
     """

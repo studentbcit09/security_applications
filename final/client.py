@@ -121,7 +121,7 @@ class AuthClient:
         carrier = Image.open('final/evidence.png')
 
         # Encode and save
-        stego_msg = stepic.decode(carrier).decode('utf-8')
+        stego_msg = stepic.decode(carrier)
 
         with open("architect_manifesto.txt", "w") as file:
             file.write(stego_msg)
