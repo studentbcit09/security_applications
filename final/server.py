@@ -1,13 +1,16 @@
 import socket
 import logging
+import json
 from enum import Enum
+from cryptography.fernet import Fernet
+
+import pyotp
 
 class ChatState(Enum):
     NO_CONNECTION = 0
     ACTIVE = 1
 
 # keep track of the username and the session state
-username = None
 session_state = ChatState.NO_CONNECTION
 logger = logging.getLogger(__name__)
 
@@ -153,7 +156,38 @@ class AuthenticationServer:
             self.active_connections[username]["session_state"] = "CLOSED"
             raise AuthenticationError(f"Exhausted number of OTP attempts for {username}")
 
-    def authentication_handshake(self, message):
+    def process_message(self, message):
+        if "username" not in message:
+            raise AuthenticationError("Malformed message: Missing username")
+        
+        username = message["username"]
+        if not username in self.active_connections or self.active_connections[username]["session_state"] == "AUTH":
+            return username, self.authentication_handshake(message, username)
+        else:
+            if 'data' in message:
+                if self.active_connections[username]["session_state"] != "CONNECTED":
+                    raise AuthenticationError("Cannot send message before connection is established.")
+                else:
+                    return username, self.process_data(message, username)
+
+    def process_data(self, message, username):
+        data_obj = message['data']
+        encrypted_bytes = data_obj['file'].encode('utf-8')
+        
+        client_info = self.get_client_info()
+        fernet_key = self.get_user_info(client_info, username, "fernet_key")
+        
+        decoded_msg = Fernet(fernet_key).decrypt(encrypted_bytes).decode('utf-8')
+
+        with open("architect_manifesto.txt", "w") as file:
+            file.write(decoded_msg)
+
+        return {"status": "File decrypted successfully"}
+    
+    def disconnect_user(self, username):
+        self.active_connections.pop(username, None)
+    
+    def authentication_handshake(self, message, username):
         """
         Given the message from the client, performs authentication for the user.
 
@@ -191,17 +225,14 @@ class AuthenticationServer:
                 authentication object (with require_otp set)
                 nonce_otp (included after full authentication completed)
         """
-        if "username" not in message:
-            raise AuthenticationError("Malformed message: Missing username")
         
+        return_msg = {}
+        return_msg["username"] = username
+
         if "authentication" not in message:
             raise AuthenticationError("Malformed message: Missing authentication object")
         auth_obj = message['authentication']
 
-        return_msg = {}
-        username = message["username"]
-        return_msg["username"] = username
-        
         if username not in self.active_connections:
             self.active_connections[username] = {"pwd_auth": False, "pwd_attempts" : 5, "otp_attempts": 5, "session_state" : "AUTH"}
 
@@ -238,10 +269,9 @@ class AuthenticationServer:
             else:
                 # OTP provided was incorrect, request for OTP again.
                 return_msg["authentication"] = {"require_otp": True}
-
         return return_msg
     
-    def socket_server():
+    def socket_server(self):
         global username, session_state
         logging.basicConfig(
             level=logging.ERROR, 
@@ -251,38 +281,51 @@ class AuthenticationServer:
         # retrieve the hostname of the machine
         hostname = socket.gethostname()
         # static assigned port for the socket server based on requirements
-        port = 12345
+        port = 1234
 
         server_socket = socket.socket()
         server_socket.bind((hostname, port))
 
-
-        has_connection = False
         while True:
-            try:    
-                exit_connection = False        
+            try:      
                 return_msg = ""
-                if session_state == ChatState.NO_CONNECTION and not has_connection:
-                    # only allow one connection to the server at a time
-                    server_socket.listen(1)
-                    conn, addr = server_socket.accept()
-                    has_connection = True
-                    logging.info("Socket connection established")
+                server_socket.listen(1)
+                conn, addr = server_socket.accept()
+                curr_username = None
 
-                # receive data
-                data = conn.recv(4096).decode()
-                print("message received: " + data)
-                if not data:
-                    return_msg = "ERROR|Input received is blank"
-                else:
-                    authentication_handshake
+                while True:
+                    try:
+                        # receive data
+                        data = conn.recv(4096).decode()
+                        print("message received: " + data)
+                        if not data:
+                            self.disconnect_user(curr_username)
+                            print("Client Disconnected.")
+                            break
+                        else:
+                            msg = json.loads(data)
+                            temp_username = msg.get('username')
+                            if temp_username:
+                                curr_username = temp_username
+                            curr_username, resp = self.process_message(msg)
+                            conn.send(json.dumps(resp).encode())
 
+                    except AuthenticationError:
+                        self.disconnect_user(curr_username)
+                        print("Authentication error")
+                        conn.close()
+                    except ConnectionAbortedError:
+                        self.disconnect_user(curr_username)
+                        print("Client aborted connection")
+                        conn.close()
+                    except Exception as e:
+                        self.disconnect_user(curr_username)
+                        print('Other error occurred: %s' % e)
+                        conn.close()
 
             except ConnectionAbortedError:
                 print("Client aborted connection")
                 conn.close()
-                reset_state()
-                has_connection = False
 
 class AuthenticationError(Exception):
     """
@@ -290,3 +333,7 @@ class AuthenticationError(Exception):
     The caller of the functions are expected to handle the exceptions.
     """
     pass
+
+if __name__ == '__main__':
+    server = AuthenticationServer()
+    server.socket_server()
