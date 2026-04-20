@@ -9,10 +9,6 @@ import nmap
 import socket 
 import logging
 
-logging.basicConfig(
-    level=logging.DEBUG, 
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 class AuthClient:
@@ -92,7 +88,8 @@ class AuthClient:
 
         server_pwd_resp = self.socket_send(self.create_message("authentication", self.create_auth_request_object(is_pwd=True)), current_socket)
 
-        otp_code = self.handle_otp(server_pwd_resp, self.username)
+            otp_code = self.handle_otp(server_pwd_resp, self.username)
+            time.sleep(35)
 
         server_otp_resp = self.socket_send(self.create_message("authentication", self.create_auth_request_object(otp_code=otp_code)), current_socket)
 
