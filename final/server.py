@@ -171,11 +171,23 @@ class AuthenticationServer:
                     return username, self.process_data(message, username)
 
     def process_data(self, message, username):
+
+        received_nonce = message.get("nonce_otp")
+        hotp = pyotp.HOTP(self.active_connections[username]["nonce_secret"])
+    
+        # We expect the nonce for counter 1 (the next step)
+        if str(received_nonce) != str(hotp.at(1)):
+            return {"status": "error, replay attack suspected"}
+        
         data_obj = message['data']
         encrypted_bytes = data_obj['file'].encode('utf-8')
         
         client_info = self.get_client_info()
         fernet_key = self.get_user_info(client_info, username, "fernet_key")
+        try:
+            decoded_msg = Fernet(fernet_key).decrypt(encrypted_bytes).decode('utf-8')
+        except Exception as e:
+            return {"status": "error: unable to decode the message"}
         
         decoded_msg = Fernet(fernet_key).decrypt(encrypted_bytes).decode('utf-8')
 
