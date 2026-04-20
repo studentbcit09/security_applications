@@ -41,6 +41,7 @@ def port_scanning():
             port_status = host_info[protocol].keys()
             for port in port_status:
                 port_info = host_info[protocol][port]
+                    # if 'open' == state:
                 if not port_info['name']:
                     print('port: %s\t state: %s\t' % (port, port_info['state']))
                 else:

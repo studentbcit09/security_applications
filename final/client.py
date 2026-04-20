@@ -76,32 +76,43 @@ class AuthClient:
         return totp.now()
 
     def run_client(self):
-        if not self.port_scanning():
-            print(f"Target port {self.TARGET_PORT} on {self.HOST_IP} is closed. Unable to proceed.")
-            return
+        """
+        The main function for running the client logic.
+        """
+        try:
+            if not self.port_scanning():
+                print(f"Target port {self.TARGET_PORT} on {self.HOST_IP} is closed. Unable to proceed.")
+                return
 
-        self.decrypt_image()
-        encrypted_file = self.encrypt_file("architect_manifesto.txt", self.username)
+            self.decrypt_image()
+            encrypted_file = self.encrypt_file("architect_manifesto.txt", self.username)
 
-        current_socket = socket.socket()
-        current_socket.connect((self.HOST_IP, self.TARGET_PORT))
+            current_socket = socket.socket()
+            current_socket.connect((self.HOST_IP, self.TARGET_PORT))
 
-        server_pwd_resp = self.socket_send(self.create_message("authentication", self.create_auth_request_object(is_pwd=True)), current_socket)
+            server_pwd_resp = self.socket_send(self.create_message("authentication", self.create_auth_request_object(is_pwd=True)), current_socket)
 
             otp_code = self.handle_otp(server_pwd_resp, self.username)
-            time.sleep(35)
 
-        server_otp_resp = self.socket_send(self.create_message("authentication", self.create_auth_request_object(otp_code=otp_code)), current_socket)
+            server_otp_resp = self.socket_send(self.create_message("authentication", self.create_auth_request_object(otp_code=otp_code)), current_socket)
 
-        if "authentication" in server_otp_resp:
-            raise AuthenticationError('OTP was not accepted correctly')
+            if "authentication" in server_otp_resp:
+                print('OTP was not accepted correctly. Please try again. Exiting.')
+                current_socket.close()
+                return
 
-        self.socket_send(self.create_message('data', {'file': encrypted_file},), current_socket)
+            server_data_resp = self.socket_send(self.create_message('data', {'file': encrypted_file},), current_socket)
+            print(f'Server response: {server_data_resp['status']}')
+            current_socket.close()
 
-        current_socket.close()
+        except AuthenticationError as e:
+            print(f'Unable to authenticate: {e} Exiting.')
+            current_socket.close()
 
 
     def handle_otp(self, resp, username):
+        if "authentication" not in resp:
+            raise AuthenticationError("Incorrect password or error occured while validating password. Please try again.")
         if resp["authentication"]["require_otp"]:
             otp_code = self.generate_otp(username)
             return otp_code
@@ -134,14 +145,16 @@ class AuthClient:
 
         Args:
             username (string): username for the login user
-            password (string): plaintext password for the user
+            is_pwd (boolean): If True, fetch the password for the user and hash it with a salt before sending.
+            otp_code (int): The OTP code, if available, for this connection.
 
         Returns:
             dict: The protocol message containing the authentication object.
         """
         if is_pwd:
             m = hashlib.sha256()
-            m.update(self.password.encode("utf-8"))
+            salt = b"fsct8561!"
+            m.update(self.password.encode("utf-8") + salt)
             hashed_pwd = m.hexdigest()
 
             return {"password": hashed_pwd}
@@ -152,7 +165,6 @@ class AuthClient:
         msg_str = json.dumps(msg)
         try:
             client_socket.send(msg_str.encode())
-            # TODO: what if the message is longer than 4096
             resp = client_socket.recv(4096).decode()
             return json.loads(resp)
         except ConnectionResetError as err:
@@ -173,6 +185,12 @@ class AuthClient:
         return encrypted
 
     def port_scanning(self):
+        """
+        Main port scanning logic. 
+
+        Returns:
+            bool : True if the target port is open, else False.
+        """
         port_scanner = nmap.PortScanner()
         
         host = self.HOST_IP
