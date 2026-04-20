@@ -171,7 +171,19 @@ class AuthenticationServer:
                     return username, self.process_data(message, username)
 
     def process_data(self, message, username):
+        """
+        Process the message if it is supposed to contain data.
 
+        Args:
+            message (dict): The message
+            username (string): The username for the client
+
+        Returns:
+            dict: The object that should be in the return message
+        """
+
+        # Commented out for the demo as the client does not fully implement this logic, but this is an integral 
+        # part of the server authentication.
         received_nonce = message.get("nonce_otp")
         hotp = pyotp.HOTP(self.active_connections[username]["nonce_secret"])
     
@@ -284,6 +296,9 @@ class AuthenticationServer:
         return return_msg
     
     def socket_server(self):
+        """
+        The main function for running the server logic.
+        """
         global username, session_state
         logging.basicConfig(
             level=logging.ERROR, 
